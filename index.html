@@ -1,0 +1,467 @@
+<!-- Copyright 2025 Bytedance Ltd. and/or its affiliates.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. -->
+
+
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ConfRover: Explore Protein Conformational Landscape</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/molstar/build/viewer/molstar.css" />
+  <style>
+    /* Hide the top-right viewport button cluster (reset/screenshot/settings) */
+    .msp-viewport-controls-buttons {
+      display: none !important;
+    }
+  </style>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+
+<body>
+  <section class="section intro" id="intro">
+    <header class="hero" id="top">
+      <div class="hero-bg"></div>
+      <div class="container hero-content">
+
+        <img src="assets/logo.svg" alt="ConfRover Logo" style="width:100%; max-width:640px; height:auto;" />
+        <p class="subtitle" style="font-family:avenir; font-size:clamp(1.5rem, 4vw, 3rem)">Autoregressive models for
+          conformation and dynamics generation</p>
+        <nav class="toc">
+          <a href="https://github.com/ByteDance-Seed/ConfRover" target="_blank">GitHub</a>
+          <a href="https://arxiv.org/abs/2505.17478" target="_blank">Paper</a>
+          <a href="#demos">Demo</a>
+        </nav>
+      </div>
+    </header>
+
+    <div class="scroll-down">
+      <a href="#overview" class="scroll-arrow">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7 13L12 18L17 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M7 7L12 12L17 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" id="overview">
+    <div class="container">
+      <h2 class="section-title">Overview</h2>
+      <p>
+        Proteins are not static molecules - they constantly move and transition between different <i>conformations</i>.
+        Understanding these dynamics is crucial for explaining how proteins function.
+        Molecular dynamics (MD) simulations capture atomic motion over time by modeling physical interactions and
+        gradually mapping out the conformational space, providing rich data for studying protein conformational
+        ensembles and dynamics.
+        ConfRover learns from MD simulation data to directly generate protein conformations or motion trajectories,
+        providing a fast alternative to costly MD runs.
+      </p>
+      <p>
+        The key idea is simple: sampling protein conformations or trajectories can be viewed as generating each
+        conformation (frame)
+        either independently or autoregressively conditioned on preceding frames, like language models.
+        This unified view provides an efficient framework for learning and generating protein conformational dynamics
+        across a variety of tasks.
+
+      </p>
+      <div class="image-tabs">
+        <button class="image-tab active" data-tab="tab1">Distributions</button>
+        <span class="tab-divider">|</span>
+        <button class="image-tab" data-tab="tab2">Dynamics</button>
+        <span class="tab-divider">|</span>
+        <button class="image-tab" data-tab="tab3">Transition Pathways</button>
+      </div>
+      <div class="image-card">
+        <div class="image-content">
+          <div class="tab-content active" id="tab1">
+            <img src="assets/tasks_1.png" alt="Distributions" class="tab-image" style="width: 100%;" />
+          </div>
+          <div class="tab-content" id="tab2">
+            <img src="assets/tasks_2.png" alt="Dynamics" class="tab-image" style="width: 100%;" />
+          </div>
+          <div class="tab-content" id="tab3">
+            <img src="assets/tasks_3.png" alt="Transition Pathways" class="tab-image" style="width: 100%;" />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <a href="#description" class="scroll-arrow">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7 13L12 18L17 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M7 7L12 12L17 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" id="description">
+    <div class="container">
+      <div>
+        <h2 class="section-title">Model</h2>
+        <p>
+          ConfRover brings together the strengths of modern protein structure predictions, language-model-like sequence
+          models,
+          and diffusion probabilistic models to capture the complex spatiotemporal dependencies in protein motion and
+          sample new conformations conditioning on historical context.
+
+        <ol>
+          <li>
+            <span class="accent">Structure-aware context encoding.</span>
+            ConfRover integrates folding modules with a frame encoder to represent context conformations using rich
+            single- and pair-wise structural features, leveraging the best practices from modern protein structure
+            modeling.
+          </li>
+
+          <li>
+            <span class="accent">Autoregressive trajectory modeling.</span>
+            The trajectory module interleaves structural and temporal update blocks, enabling the model to capture
+            complex
+            spatiotemporal relationships across frames.
+          </li>
+
+          <li>
+            <span class="accent">Physical time encoding.</span>
+            The timestamp of each frame is encoded with Rotary Positional Encoding (RoPE), allowing ConfRover to
+            represent relative temporal positions
+            and learn from motions at multiple timescales.
+          </li>
+
+          <li>
+            <span class="accent">Diffusion decoding in continuous SE(3) space.</span>
+            A diffusion-based decoder predicts conformations directly in continuous 3D space, avoiding discretized
+            tokenization and
+            preserving fine-grained geometric details.
+          </li>
+
+          <li>
+            <span class="accent">Efficient long-trajectory learning and generation.</span>
+            A causal transformer backbone enables efficient parallel training, KV-cached autoregressive generation, and
+            flexible
+            trajectory lengths.
+            The same architecture also supports unconditional conformation generation using a learned mask-token
+            initialization.
+          </li>
+        </ol>
+        </p>
+        <div class="image-card">
+          <img src="assets/model_arch.png" alt="Model illustration"
+            style="width: 100%; cursor: pointer; transition: transform 0.2s ease;"
+            onclick="openImageModal(this.src, this.alt);" loading="lazy">
+        </div>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <a href="#demos" class="scroll-arrow">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7 13L12 18L17 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M7 7L12 12L17 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </a>
+    </div>
+  </section>
+
+
+  <section class="section" id="demos">
+    <div class="container">
+      <h2 class="section-title">Examples</h2>
+      <div class="tabs" id="task-tabs"></div>
+      <div class="demo-area">
+        <aside class="cases" id="case-list"></aside>
+        <div class="viewer">
+          <div id="molstar-viewer" class="molstar-viewer"></div>
+          <div id="molstar-status" class="status"></div>
+        </div>
+      </div>
+    </div>
+    <div class="scroll-down">
+      <a href="#contact" class="scroll-arrow">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M7 13L12 18L17 13" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <path d="M7 7L12 12L17 7" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+            stroke-linejoin="round" />
+        </svg>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" id="contact">
+    <div class="container">
+
+      <img src="assets/logo.svg" alt="ConfRover Logo" style="width:100%; max-width:1024px; height:auto;" />
+
+
+      <div class="contact-buttons">
+        <a href="https://github.com/ByteDance-Seed/ConfRover" target="_blank" rel="noopener noreferrer"
+          class="contact-btn github-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M12 0C5.37258 0 0 5.37258 0 12C0 16.99 3.65796 21.1287 8.43573 21.8787C9.08963 21.9421 9.26241 21.6094 9.26241 21.3023C9.26241 21.0273 9.25625 20.1653 9.25317 19.2982C6.5328 19.7868 5.94566 18.5908 5.94566 18.5908C5.46219 17.6113 4.90139 17.3063 4.90139 17.3063C4.21305 16.6813 5.04878 16.7322 5.04878 16.7322C5.95354 16.8204 6.43262 17.6766 6.43262 17.6766C7.39477 19.2713 8.99087 18.8698 9.32792 18.6832C9.40749 18.1203 9.64961 17.7311 9.91805 17.5059C7.95374 17.2183 5.70975 16.4253 5.70975 13.2616C5.70975 12.0434 6.11342 11.0612 6.72961 10.2729C6.61023 10.0282 6.27117 9.07213 6.69361 7.7998C6.69361 7.7998 7.46342 7.44487 9.23886 8.58045C10.1685 8.32915 11.1462 8.20473 12.1307 8.20473C13.1152 8.20473 14.0928 8.32915 15.0225 8.58045C16.798 7.44487 17.5678 7.7998 17.5678 7.7998C18.0041 9.06541 17.6507 10.0231 17.5313 10.2729C18.1475 11.0612 18.5512 12.0434 18.5512 13.2616C18.5512 16.4995 16.2828 17.229 14.2897 17.5059C14.6268 17.7925 14.9013 18.3036 14.9013 19.2453V21.2948C14.9013 21.6042 15.0739 21.9436 15.7497 21.8692C20.5655 21.0933 24.3026 16.9517 24.3026 12C24.3026 5.37258 18.9301 0 12 0Z"
+              fill="currentColor" />
+          </svg>
+          <span>GitHub Repository</span>
+        </a>
+        <a href="https://arxiv.org/abs/2505.17478" target="_blank" rel="noopener noreferrer"
+          class="contact-btn paper-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M14.5 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V7.5L14.5 2Z"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M14 2V8H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" />
+            <path d="M16 13H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M16 17H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M10 9H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Research Paper</span>
+        </a>
+        <a href="mailto:yuning.shen@bytedance.com" class="contact-btn email-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M4 4H20C21.1046 4 22 4.89543 22 6V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V6C2 4.89543 2.89543 4 4 4Z"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M22 6L12 13L2 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+          <span>Contact Us</span>
+        </a>
+      </div>
+
+      <div class="logo-wrap">
+        <a href="https://seed.bytedance.com/en/" target="_blank">
+          <svg xmlns="http://www.w3.org/2000/svg" width="225" height="27" viewBox="0 0 225 27" fill="none"
+            class="seed-logo">
+            <g clip-path="url(#clip0_2288_69286)">
+              <path d="M4.25147 22.0096L0.0722656 23.0842V4.04297L4.25147 5.11762V22.0096Z" fill="white"></path>
+              <path d="M24.4411 23.1252L20.2539 24.1999V2.92969L24.4411 3.99638V23.1252Z" fill="white"></path>
+              <path d="M10.8843 22.5917L6.70508 23.6664V12.4502L10.8843 13.5248V22.5917Z" fill="white"></path>
+              <path d="M13.6094 10.7866L17.7965 9.71191V20.9281L13.6094 19.8534V10.7866Z" fill="white"></path>
+              <path
+                d="M41.1812 13.4211C41.6429 13.1027 42.017 12.7126 42.2877 12.2669C42.638 11.7017 42.8131 11.0728 42.8131 10.3882C42.8131 9.57624 42.622 8.83593 42.2479 8.18318C41.8738 7.53042 41.3245 6.98912 40.616 6.56722C40.1941 6.32045 39.6687 6.13736 39.0399 6.02591C38.419 5.92243 37.5752 5.8667 36.5244 5.8667H32.584V22.1935H38.5702C40.0827 22.1935 41.3723 21.7397 42.3912 20.8561C43.4181 19.9646 43.9435 18.8421 43.9435 17.5287C43.9435 16.4779 43.6728 15.5784 43.1315 14.8619C42.6698 14.241 42.0091 13.7554 41.1812 13.4132V13.4211ZM39.6687 12.1156C39.1911 12.5216 38.4986 12.7286 37.599 12.7286H35.0676V8.07173H37.4637C38.4508 8.07173 39.1911 8.27074 39.6767 8.66876C40.1543 9.05882 40.3852 9.63197 40.3852 10.4121C40.3852 11.1922 40.1543 11.7176 39.6767 12.1156H39.6687ZM35.0597 14.9734H38.0767C39.1911 14.9734 40.0429 15.1883 40.6001 15.6102C41.1494 16.0242 41.4121 16.6212 41.4121 17.4332C41.4121 18.2451 41.1414 18.866 40.5762 19.28C40.0031 19.7019 39.1354 19.9168 37.997 19.9168H35.0676V14.9654L35.0597 14.9734Z"
+                fill="white"></path>
+              <path
+                d="M60.5775 8.19141H58.2213V10.8581H53.7634L50.8499 17.9031C50.8022 18.0225 50.7066 18.2772 50.5713 18.6832C50.4917 18.922 50.4041 19.2006 50.3007 19.5031C50.2051 19.1767 50.1255 18.8902 50.0459 18.6514C49.8788 18.118 49.8151 17.9668 49.7912 17.9031L46.9255 10.8581H44.3145L48.9713 21.9947L46.9653 26.7391H49.3693L55.451 12.896H58.2292V19.726C58.2292 20.6972 58.4601 21.4057 58.9138 21.8355C59.3675 22.2574 60.1158 22.4803 61.1427 22.4803H62.4323V20.2275H61.2064C60.9756 20.2275 60.8163 20.1798 60.7208 20.0763C60.6253 19.9648 60.5775 19.7738 60.5775 19.5031V12.904H62.4323V10.8661H60.5775V8.19936V8.19141Z"
+                fill="white"></path>
+              <path
+                d="M69.3682 10.5811C67.6408 10.5811 66.2238 11.1462 65.1492 12.2527C64.0745 13.3592 63.5332 14.8239 63.5332 16.6071C63.5332 17.3633 63.6606 18.0957 63.9233 18.7803C64.178 19.4728 64.5601 20.0858 65.0457 20.6111C65.5949 21.2082 66.2716 21.6699 67.0358 21.9963C67.8 22.3147 68.6438 22.4818 69.5274 22.4818C70.5941 22.4818 71.5732 22.2828 72.425 21.8848C73.2767 21.4868 74.0728 20.8659 74.7892 20.03L74.9245 19.8708L73.213 18.4937L73.0857 18.6449C72.6001 19.2022 72.0588 19.632 71.4697 19.9186C70.8886 20.2052 70.2597 20.3485 69.5831 20.3485C68.5403 20.3485 67.6646 20.0539 66.988 19.4648C66.3591 18.9235 66.0009 18.2389 65.9054 17.3872H75.2907V17.0369C75.2907 15.1185 74.7414 13.5503 73.6588 12.3801C72.5682 11.202 71.1274 10.597 69.3602 10.597L69.3682 10.5811ZM67.0039 13.5344C67.6487 12.9851 68.4368 12.7065 69.3443 12.7065C70.2518 12.7065 71.008 12.9771 71.6289 13.5184C72.1941 14.012 72.5523 14.6488 72.7036 15.413H65.9134C66.0487 14.6647 66.4149 14.0279 67.0039 13.5344Z"
+                fill="white"></path>
+              <path
+                d="M88.3366 7.95315C86.7525 6.576 84.4121 5.87549 81.3952 5.87549H77.8926V22.2022H81.3952C84.4121 22.2022 86.7525 21.5017 88.3366 20.1246C89.9287 18.7395 90.7406 16.6937 90.7406 14.0428C90.7406 11.392 89.9287 9.33826 88.3366 7.95315ZM81.7056 19.9176H80.3842V8.16012H81.7056C83.8708 8.16012 85.5107 8.65367 86.6012 9.64076C87.6839 10.6199 88.2252 12.0926 88.2252 14.0428C88.2252 15.9931 87.6759 17.4579 86.6012 18.437C85.5186 19.4241 83.8708 19.9176 81.7056 19.9176Z"
+                fill="white"></path>
+              <path
+                d="M101.413 12.2899C100.976 11.8282 100.474 11.4541 99.9169 11.1754C99.1925 10.8172 98.3885 10.6421 97.5208 10.6421C95.8014 10.6421 94.4004 11.1834 93.3496 12.2581C92.2988 13.3327 91.7734 14.7576 91.7734 16.493C91.7734 17.297 91.9088 18.0453 92.1715 18.7298C92.4341 19.4144 92.8401 20.0433 93.3655 20.5926C93.9148 21.1578 94.5596 21.5956 95.268 21.8981C95.9765 22.1926 96.7328 22.3439 97.5208 22.3439C98.4044 22.3439 99.2005 22.1767 99.8851 21.8424C100.403 21.5876 100.872 21.2374 101.27 20.7916V22.2085H103.611V10.865H101.413V12.2979V12.2899ZM100.363 13.8103C101.031 14.5108 101.374 15.4183 101.374 16.5089C101.374 17.5995 101.031 18.5149 100.363 19.2154C99.694 19.908 98.8263 20.2582 97.7835 20.2582C96.7407 20.2582 95.873 19.908 95.2044 19.2154C94.5357 18.5229 94.1934 17.6154 94.1934 16.5089C94.1934 15.4024 94.5357 14.5029 95.2044 13.8024C95.873 13.1098 96.7407 12.7596 97.7835 12.7596C98.8263 12.7596 99.694 13.1098 100.363 13.8103Z"
+                fill="white"></path>
+              <path
+                d="M110.812 10.6421C110.176 10.6421 109.571 10.7695 109.013 11.0242C108.591 11.2152 108.178 11.4859 107.78 11.8361V10.857H105.455V22.2006H107.78V15.9358C107.78 14.8611 108.01 14.0491 108.456 13.5238C108.894 13.0063 109.579 12.7436 110.47 12.7436C111.258 12.7436 111.815 12.9745 112.174 13.4601C112.54 13.9536 112.731 14.7576 112.731 15.8561V22.2085H115.071V15.6651C115.071 14.1208 114.689 12.8949 113.933 12.0033C113.169 11.1038 112.118 10.6501 110.804 10.6501L110.812 10.6421Z"
+                fill="white"></path>
+              <path
+                d="M124.454 19.2082C124.16 19.5823 123.809 19.8689 123.395 20.052C122.981 20.243 122.496 20.3385 121.947 20.3385C120.936 20.3385 120.132 19.9962 119.503 19.2878C118.874 18.5872 118.555 17.6559 118.555 16.5335C118.555 15.4111 118.882 14.4797 119.519 13.7633C120.156 13.0468 120.952 12.6966 121.955 12.6966C122.464 12.6966 122.926 12.7841 123.324 12.9513C123.714 13.1185 124.072 13.3812 124.382 13.7394L124.534 13.9145L126.054 12.1632L125.903 12.0279C125.37 11.5423 124.773 11.1761 124.12 10.9373C123.475 10.6985 122.743 10.5791 121.947 10.5791C121.111 10.5791 120.331 10.7224 119.63 10.993C118.93 11.2717 118.301 11.6856 117.783 12.2269C117.226 12.7841 116.804 13.4369 116.526 14.1692C116.239 14.8936 116.096 15.6897 116.096 16.5335C116.096 17.3773 116.239 18.1733 116.526 18.8897C116.812 19.6141 117.234 20.2669 117.783 20.8241C118.301 21.3575 118.93 21.7714 119.638 22.05C120.347 22.3286 121.119 22.4719 121.955 22.4719C122.79 22.4719 123.499 22.3446 124.152 22.0978C124.804 21.851 125.425 21.453 126.014 20.9117L126.166 20.7764L124.621 19.0012L124.47 19.2002L124.454 19.2082Z"
+                fill="white"></path>
+              <path
+                d="M138.867 17.021C138.867 15.1026 138.318 13.5344 137.235 12.3642C136.145 11.186 134.704 10.5811 132.937 10.5811C131.169 10.5811 129.792 11.1462 128.718 12.2527C127.643 13.3592 127.102 14.8239 127.102 16.6071C127.102 17.3633 127.229 18.0957 127.492 18.7803C127.746 19.4728 128.128 20.0858 128.614 20.6111C129.163 21.2082 129.84 21.6699 130.604 21.9963C131.368 22.3147 132.212 22.4818 133.096 22.4818C134.162 22.4818 135.142 22.2828 135.993 21.8848C136.845 21.4868 137.641 20.8659 138.358 20.03L138.493 19.8708L136.781 18.4937L136.654 18.6449C136.168 19.2022 135.619 19.632 135.038 19.9186C134.457 20.2052 133.828 20.3485 133.151 20.3485C132.109 20.3485 131.233 20.0539 130.556 19.4648C129.927 18.9156 129.569 18.2389 129.474 17.3872H138.859V17.0369L138.867 17.021ZM130.572 13.5344C131.217 12.9851 132.005 12.7065 132.913 12.7065C133.82 12.7065 134.576 12.9771 135.197 13.5184C135.762 14.012 136.121 14.6488 136.272 15.413H129.482C129.617 14.6647 129.983 14.0279 130.572 13.5344Z"
+                fill="white"></path>
+              <path d="M151.063 5.01465H150.267V23.5703H151.063V5.01465Z" fill="white"></path>
+              <path
+                d="M167.356 22.5031C166.067 21.8822 165 20.9986 164.148 19.8523L166.226 18.117C166.935 18.9449 167.691 19.5896 168.487 20.0513C169.283 20.5131 170.302 20.7359 171.552 20.7359C172.73 20.7359 173.741 20.5051 174.6 20.0354C175.46 19.5658 175.882 18.9369 175.882 18.1409C175.882 17.3448 175.468 16.7557 174.648 16.31C173.828 15.8642 172.658 15.5219 171.13 15.2592C168.964 14.9169 167.333 14.3676 166.226 13.6114C165.12 12.8552 164.562 11.7168 164.562 10.1725C164.562 9.05009 164.889 8.07096 165.534 7.24308C166.178 6.4152 167.046 5.77837 168.113 5.33259C169.179 4.88681 170.342 4.67188 171.591 4.67188C173.064 4.67188 174.401 4.94253 175.603 5.4918C176.805 6.03311 177.785 6.86099 178.549 7.96748L176.471 9.57548C175.882 8.83516 175.197 8.26201 174.417 7.86399C173.637 7.46597 172.714 7.26696 171.639 7.26696C170.429 7.26696 169.402 7.5217 168.551 8.0232C167.699 8.52471 167.277 9.19338 167.277 10.0213C167.277 10.7855 167.651 11.3506 168.391 11.7248C169.132 12.0989 170.366 12.4253 172.077 12.6959C173.948 13.0064 175.508 13.6034 176.758 14.4711C178.015 15.3468 178.636 16.5329 178.636 18.0374C178.636 19.112 178.302 20.0593 177.641 20.8792C176.973 21.6992 176.097 22.336 175.006 22.7738C173.916 23.2116 172.746 23.4345 171.504 23.4345C170.015 23.4345 168.63 23.1241 167.341 22.5031H167.356Z"
+                fill="white"></path>
+              <path
+                d="M183.597 22.5678C182.53 21.923 181.695 21.0394 181.082 19.917C180.469 18.7946 180.158 17.5607 180.158 16.1915C180.158 14.8224 180.469 13.6522 181.09 12.5616C181.71 11.471 182.562 10.6113 183.629 9.98244C184.704 9.35357 185.89 9.03516 187.187 9.03516C188.62 9.03516 189.846 9.32969 190.857 9.92672C191.868 10.5238 192.64 11.3516 193.165 12.4024C193.691 13.4611 193.954 14.6711 193.954 16.0323C193.954 16.3428 193.922 16.8284 193.85 17.4891L182.825 17.513C183 18.2374 183.311 18.8662 183.772 19.3916C184.234 19.917 184.759 20.323 185.364 20.6016C185.969 20.8802 186.566 21.0155 187.155 21.0155C188.055 21.0155 188.867 20.8484 189.583 20.5061C190.3 20.1717 190.881 19.726 191.335 19.1687L193.388 20.4902C192.783 21.5091 191.94 22.2733 190.857 22.7748C189.774 23.2763 188.533 23.531 187.132 23.531C185.834 23.531 184.656 23.2046 183.589 22.5599L183.597 22.5678ZM189.981 12.5616C189.225 11.8691 188.31 11.5268 187.219 11.5268C186.527 11.5268 185.866 11.678 185.237 11.9805C184.608 12.283 184.067 12.7129 183.629 13.278C183.191 13.8432 182.92 14.488 182.833 15.2124H191.398C191.207 14.1378 190.738 13.2542 189.981 12.5616Z"
+                fill="white"></path>
+              <path
+                d="M198.439 22.5678C197.372 21.923 196.536 21.0394 195.923 19.917C195.31 18.7946 195 17.5607 195 16.1915C195 14.8224 195.31 13.6522 195.931 12.5616C196.552 11.471 197.404 10.6113 198.471 9.98244C199.545 9.35357 200.731 9.03516 202.029 9.03516C203.462 9.03516 204.688 9.32969 205.699 9.92672C206.71 10.5238 207.482 11.3516 208.007 12.4024C208.533 13.4611 208.795 14.6711 208.795 16.0323C208.795 16.3428 208.763 16.8284 208.692 17.4891L197.667 17.513C197.842 18.2374 198.152 18.8662 198.614 19.3916C199.076 19.917 199.601 20.323 200.206 20.6016C200.811 20.8802 201.408 21.0155 201.997 21.0155C202.897 21.0155 203.709 20.8484 204.425 20.5061C205.142 20.1717 205.723 19.726 206.176 19.1687L208.23 20.4902C207.625 21.5091 206.781 22.2733 205.699 22.7748C204.616 23.2763 203.374 23.531 201.973 23.531C200.676 23.531 199.498 23.2046 198.431 22.5599L198.439 22.5678ZM204.823 12.5616C204.067 11.8691 203.151 11.5268 202.061 11.5268C201.368 11.5268 200.708 11.678 200.079 11.9805C199.45 12.283 198.909 12.7129 198.471 13.278C198.033 13.8432 197.762 14.488 197.675 15.2124H206.24C206.049 14.1378 205.579 13.2542 204.823 12.5616Z"
+                fill="white"></path>
+              <path
+                d="M224.374 4.62417V23.156H221.755V20.9509C221.166 21.7151 220.465 22.3201 219.637 22.7818C218.809 23.2435 217.87 23.4664 216.795 23.4664C215.514 23.4664 214.343 23.148 213.277 22.5032C212.21 21.8664 211.374 20.9828 210.761 19.8683C210.148 18.7539 209.838 17.52 209.838 16.1667C209.838 14.8135 210.14 13.6513 210.745 12.5607C211.35 11.4701 212.178 10.6024 213.221 9.96559C214.272 9.32876 215.434 9.00239 216.708 9.00239C217.814 9.00239 218.785 9.23324 219.613 9.68698C220.441 10.1487 221.15 10.7537 221.739 11.5179V4.61621H224.358L224.374 4.62417ZM219.589 20.3778C220.29 19.932 220.839 19.335 221.237 18.6026C221.635 17.8703 221.834 17.0742 221.834 16.2304C221.834 15.3866 221.635 14.6145 221.237 13.8662C220.839 13.1259 220.29 12.5288 219.589 12.0751C218.889 11.6293 218.109 11.3985 217.241 11.3985C216.31 11.3985 215.482 11.6214 214.765 12.0751C214.049 12.5288 213.492 13.1099 213.094 13.8423C212.696 14.5667 212.497 15.3389 212.497 16.1508C212.497 17.0185 212.696 17.8225 213.094 18.5787C213.492 19.335 214.049 19.932 214.765 20.3857C215.482 20.8315 216.31 21.0624 217.241 21.0624C218.109 21.0624 218.889 20.8395 219.589 20.3857V20.3778Z"
+                fill="white"></path>
+            </g>
+            <defs>
+              <clipPath id="clip0_2288_69286">
+                <rect width="225" height="26.5625" fill="white"></rect>
+              </clipPath>
+            </defs>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <button id="back-to-top" class="back-to-top" aria-label="Back to top">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15"></polyline>
+    </svg>
+  </button>
+
+
+  <script src="https://cdn.jsdelivr.net/npm/molstar/build/viewer/molstar.js"></script>
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      // Smooth scrolling for scroll arrow
+      const scrollArrow = document.querySelector('.scroll-arrow');
+      if (scrollArrow) {
+        scrollArrow.addEventListener('click', function (e) {
+          e.preventDefault();
+          const targetId = this.getAttribute('href');
+          const targetElement = document.querySelector(targetId);
+
+          if (targetElement) {
+            targetElement.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start'
+            });
+          }
+        });
+      }
+
+      // Back to top button functionality
+      const backToTopButton = document.getElementById('back-to-top');
+
+      if (backToTopButton) {
+        // Show/hide button based on scroll position
+        window.addEventListener('scroll', function () {
+          if (window.pageYOffset > 300) {
+            backToTopButton.classList.add('visible');
+          } else {
+            backToTopButton.classList.remove('visible');
+          }
+        });
+
+        // Click event for smooth scrolling to top
+        backToTopButton.addEventListener('click', function () {
+          window.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        });
+
+        // Initialize button visibility
+        if (window.pageYOffset > 300) {
+          backToTopButton.classList.add('visible');
+        }
+      }
+
+      const tabs = document.querySelectorAll('.image-tab');
+
+      tabs.forEach(tab => {
+        tab.addEventListener('click', function () {
+          const tabId = this.getAttribute('data-tab');
+
+          // First, update the tab styling
+          tabs.forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+
+          // Get all content elements
+          const allContents = document.querySelectorAll('.tab-content');
+          const activeContent = document.getElementById(tabId);
+
+          // If the target content is already active, do nothing
+          if (activeContent && activeContent.classList.contains('active')) {
+            return;
+          }
+
+          // Remove active class from all contents to trigger fade-out
+          allContents.forEach(content => content.classList.remove('active'));
+
+          // Wait for the fade-out transition to complete before showing new content
+          setTimeout(() => {
+            if (activeContent) {
+              activeContent.classList.add('active');
+            }
+          }, 300); // Match the transition duration in CSS
+        });
+      });
+    });
+  </script>
+  <!-- Image Modal for Zooming -->
+  <div id="imageModal" class="modal"
+    style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0, 0, 0, 0.85); transition: opacity 0.3s ease;">
+    <span class="modal-close"
+      style="position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; cursor: pointer;">&times;</span>
+    <div class="modal-content" style="display: flex; justify-content: center; align-items: center; height: 100%;">
+      <img id="modalImage" class="modal-image"
+        style="max-width: 90%; max-height: 90%; object-fit: contain; transition: transform 0.3s ease; cursor: zoom-in;">
+    </div>
+    <div id="caption"
+      style="text-align: center; color: #ccc; padding: 10px 0; position: absolute; bottom: 20px; width: 100%; font-size: 16px;">
+    </div>
+  </div>
+
+  <script>
+    // Image Modal Functionality
+    function openImageModal(imgSrc, imgAlt) {
+      const modal = document.getElementById("imageModal");
+      const modalImg = document.getElementById("modalImage");
+      const caption = document.getElementById("caption");
+
+      modal.style.display = "block";
+      modalImg.src = imgSrc;
+      caption.innerHTML = imgAlt;
+
+      // Center modal content vertically and horizontally
+      modal.style.opacity = "1";
+    }
+
+    // Close modal when clicking on close button
+    document.querySelector(".modal-close").addEventListener("click", function () {
+      const modal = document.getElementById("imageModal");
+      modal.style.display = "none";
+    });
+
+    // Close modal when clicking outside the image
+    document.getElementById("imageModal").addEventListener("click", function (event) {
+      if (event.target === this) {
+        this.style.display = "none";
+      }
+    });
+
+    // Toggle zoom on click (simple implementation)
+    let isZoomed = false;
+    document.getElementById("modalImage").addEventListener("click", function () {
+      if (isZoomed) {
+        this.style.transform = "scale(1)";
+        this.style.cursor = "zoom-in";
+      } else {
+        this.style.transform = "scale(1.5)";
+        this.style.cursor = "zoom-out";
+      }
+      isZoomed = !isZoomed;
+    });
+
+    // Allow closing with Escape key
+    document.addEventListener("keydown", function (event) {
+      const modal = document.getElementById("imageModal");
+      if (event.key === "Escape" && modal.style.display === "block") {
+        modal.style.display = "none";
+        isZoomed = false;
+        document.getElementById("modalImage").style.transform = "scale(1)";
+      }
+    });
+  </script>
+</body>
+
+</html>

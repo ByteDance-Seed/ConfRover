@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420" viewBox="0 0 640 420">
+  <rect width="640" height="420" fill="#131a2a"/>
+  <rect x="20" y="20" width="600" height="380" rx="12" fill="#1a2236" stroke="#6ea8fe" stroke-width="2"/>
+  <text x="40" y="70" fill="#e6eaf2" font-family="Inter, Arial, sans-serif" font-size="22" font-weight="700">Tasks Overview</text>
+  <circle cx="60" cy="110" r="10" fill="#6ea8fe"/>
+  <rect x="80" y="100" width="260" height="20" rx="6" fill="#2a3550"/>
+  <circle cx="60" cy="150" r="10" fill="#c58cff"/>
+  <rect x="80" y="140" width="300" height="20" rx="6" fill="#2a3550"/>
+  <circle cx="60" cy="190" r="10" fill="#55d187"/>
+  <rect x="80" y="180" width="220" height="20" rx="6" fill="#2a3550"/>
+  <rect x="360" y="100" width="230" height="140" rx="10" fill="#0b0f19" stroke="#2a3550"/>
+  <text x="375" y="130" fill="#9aa3b2" font-family="Inter, Arial, sans-serif" font-size="14">Preview</text>
+  <rect x="375" y="150" width="200" height="80" rx="8" fill="#131a2a" stroke="#2a3550"/>
+  <rect x="40" y="250" width="550" height="120" rx="12" fill="#0b0f19" stroke="#2a3550"/>
+  <text x="55" y="280" fill="#9aa3b2" font-family="Inter, Arial, sans-serif" font-size="14">Notes</text>
+  <rect x="55" y="295" width="520" height="60" rx="8" fill="#131a2a" stroke="#2a3550"/>
+</svg>
