@@ -1,0 +1,57 @@
+# @package _global_
+
+model_ckpt: null
+output_dir: ???
+
+seed: 42
+
+data:
+  _target_: confrover.data.datamodule.ConfRoverDataModule
+  gen_dataset:
+    _target_: confrover.data.infer.GenDataset
+    config: ???
+    case_subset: null
+    sort_by_seqlen: false
+    # Dataloader configs
+    batch_size: 1
+    num_workers: 4
+    pin_memory: true
+    repr_loader:
+      _target_: confrover.data.pretrain_repr.openfold.loader.OpenFoldReprLoader
+      repr_root: ???
+      num_recycles: 3
+      load_single: True
+      load_pair: True
+      v1: False
+
+sampler:
+  _target_: confrover.model.decoder.confdiff.sampler.euler.EulerSampler
+  diffusion_steps: 200
+  early_stop: 0
+  mode: sde
+  tmin: 0.01
+  tmax: 1.0
+
+writer:
+  _target_: confrover.model.utils.writer.Writer
+  output_dir: ${output_dir}
+  output_format: "auto"
+  preview_frames: 20
+  
+trainer:
+  _target_: lightning.pytorch.trainer.Trainer
+  default_root_dir: "."
+  strategy: deepspeed_stage_2_offload
+  devices: "auto"
+  precision: bf16-mixed
+  logger: False
+  enable_checkpointing: False
+
+
+callbacks:
+  model_summary:
+    _target_: lightning.pytorch.callbacks.RichModelSummary
+    max_depth: 2
+  rich_progress_bar:
+    _target_: lightning.pytorch.callbacks.RichProgressBar
+    leave: True

@@ -1,0 +1,11 @@
+{
+    "name": "example_fwd",
+    "task_mode": "iid",
+    "n_replicates": 20,
+    "cases": [
+        {
+            "case_id": "6j56_A",
+            "seqres": "ARQREIEMNRQQRFFRIPFIRPADQYKDPQSKKKGWWYAHFDGPWIARQMELHPDKPPILLVAGKDDMEMCELNLEETGLTRKRGAEILPRQFEEIWERCGGIQYLQNAIESRQARPTYATAMLQSLLK"
+        }
+    ]
+}

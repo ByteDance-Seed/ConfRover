@@ -1,0 +1,49 @@
+<svg width="1100" height="300" viewBox="0 0 1100 300" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1100" height="300" fill="transparent"></rect>
+
+  <defs>
+    <!-- Landscape gradients -->
+    <linearGradient id="grad1" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6CC4CF"></stop>
+      <stop offset="100%" stop-color="#3A5F9A"></stop>
+    </linearGradient>
+    <linearGradient id="grad2" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7BD3CA"></stop>
+      <stop offset="100%" stop-color="#4A74C9"></stop>
+    </linearGradient>
+    <linearGradient id="grad3" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#6CC4CF"></stop>
+      <stop offset="100%" stop-color="#2F5597"></stop>
+    </linearGradient>
+
+    <!-- Curve gradient -->
+    <linearGradient id="traj" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ffffff"></stop>
+      <stop offset="100%" stop-color="#45E6D8"></stop>
+    </linearGradient>
+  </defs>
+
+  <!-- ================= LEFT: LOGO MARK ================= -->
+  <g transform="translate(0,0)">
+    <!-- Landscape -->
+    <polygon points="20,180 120,120 200,160" fill="url(#grad1)" opacity="0.75"></polygon>
+    <polygon points="120,120 260,80 200,160" fill="url(#grad2)" opacity="0.75"></polygon>
+    <polygon points="200,160 260,80 340,180" fill="url(#grad3)" opacity="0.75"></polygon>
+
+    <!-- Curve -->
+    <path d="M40,150 C120,60 200,40 300,120" fill="none" stroke="url(#traj)" stroke-width="4" stroke-linecap="round"></path>
+
+    <!-- Rover (hexagon, 15° rotated) -->
+    <polygon points="300,120 302.59,110.34 309.66,117.41" fill="#3A4F8C"></polygon>
+    <polygon points="300,120 309.66,117.41 307.07,127.07" fill="#5F8FD9"></polygon>
+    <polygon points="300,120 307.07,127.07 297.41,129.66" fill="#5ABABF"></polygon>
+    <polygon points="300,120 297.41,129.66 290.34,122.59" fill="#7ED8D2"></polygon>
+    <polygon points="300,120 290.34,122.59 292.93,112.93" fill="#5ABABF"></polygon>
+    <polygon points="300,120 292.93,112.93 302.59,110.34" fill="#5F8FD9"></polygon>
+  </g>
+
+  <!-- ================ RIGHT: HUGE WORDMARK ================== -->
+  <text x="380" y="150" font-family="Avenir, system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="128" font-weight="700" fill="#87BED0" text-anchor="start" dominant-baseline="middle">
+    ConfRover
+  </text>
+</svg>

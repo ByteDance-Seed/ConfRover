@@ -1,0 +1,17 @@
+{
+    "name": "example_interp",
+    "task_mode": "interp",
+    "n_replicates": 3,
+    "n_frames": 9,
+    "cases": [
+        {
+            "case_id": "6j56_A",
+            "seqres": "ARQREIEMNRQQRFFRIPFIRPADQYKDPQSKKKGWWYAHFDGPWIARQMELHPDKPPILLVAGKDDMEMCELNLEETGLTRKRGAEILPRQFEEIWERCGGIQYLQNAIESRQARPTYATAMLQSLLK",
+            "stride_in_10ps": 256,
+            "conditions": [
+                "examples/6j56_A_start.pdb",
+                "examples/6j56_A_end.pdb"
+            ]
+        }
+    ]
+}

@@ -1,0 +1,43 @@
+{
+    "name": "atlasTest_fwd_100ns",
+    "task_mode": "forward",
+    "n_replicates": 1,
+    "n_frames": 3,
+    "stride_in_10ps": 120,
+    "cases": [
+        {
+            "case_id": "7jfl_C",
+            "seqres": "SALQDLLRTLKSPSSPQQQQQVLNILKSNPQLMAAFIKQRTAKYVAN",
+            "conditions": "7jfl_C/7jfl_C.pdb"
+        },
+        {
+            "case_id": "6okd_C",
+            "seqres": "GSREGCASRCMKYNDELEKCEARMMSMSNTEEDCEQELEDLLYCLDHCHSQ",
+            "conditions": [
+                "6okd_C/6okd_C.pdb"
+            ]
+        },
+        {
+            "case_id": "7lp1_A",
+            "seqres": "VTQSFLPPGWEMRIAPNGRPFFIDHNTKTTTWEDPRLKF",
+            "conditions": {
+                "xtc_fpath": "7lp1_A/7lp1_A_prod_R1_fit.xtc",
+                "pdb_fpath": "7lp1_A/7lp1_A.pdb",
+                "frame_idxs": [
+                    0
+                ]
+            }
+        },
+        {
+            "case_id": "6ro6_A",
+            "seqres": "MEGALPKGLSDLIADPTLGPQITPDWVRTLSRIELRGKRPRDKQDWYEIYLHLKRILS",
+            "conditions": {
+                "xtc_fpath": "6ro6_A/6ro6_A_prod_R1_fit.xtc",
+                "pdb_fpath": "6ro6_A/6ro6_A.pdb",
+                "frame_idxs": [
+                    0
+                ]
+            }
+        }
+    ]
+}

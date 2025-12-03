@@ -1,0 +1,482 @@
+# Copyright 2021 AlQuraishi Laboratory
+# Copyright 2021 DeepMind Technologies Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+from __future__ import annotations
+
+import importlib
+import math
+from functools import partialmethod
+from typing import Callable, List, Optional, Sequence, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+# from src.utils.tensor_utils import (
+#     permute_final_dims,
+#     flatten_final_dims,
+# )
+from openfold.utils.tensor_utils import flatten_final_dims, permute_final_dims
+from scipy.stats import truncnorm
+from torch.nn import LayerNorm
+
+deepspeed_is_installed = importlib.util.find_spec("deepspeed") is not None
+ds4s_is_installed = (
+    deepspeed_is_installed
+    and importlib.util.find_spec("deepspeed.ops.deepspeed4science") is not None
+)
+if deepspeed_is_installed:
+    import deepspeed
+
+if ds4s_is_installed:
+    from deepspeed.ops.deepspeed4science import DS4Sci_EvoformerAttention
+
+
+def _prod(nums):
+    return np.prod(nums)
+
+
+def _calculate_fan(linear_weight_shape, fan="fan_in"):
+    fan_out, fan_in = linear_weight_shape
+    if fan == "fan_in":
+        return fan_in
+    elif fan == "fan_out":
+        return fan_out
+    elif fan == "fan_avg":
+        return (fan_in + fan_out) / 2
+    else:
+        raise ValueError("Invalid fan option")
+
+
+def trunc_normal_init_(weights, scale=1.0, fan="fan_in"):
+    shape = weights.shape
+    f = _calculate_fan(shape, fan)
+    scale = scale / max(1, f)
+    a, b = -2, 2
+    std = math.sqrt(scale) / truncnorm.std(a=a, b=b, loc=0, scale=1)
+    size = _prod(shape)
+    samples = truncnorm.rvs(a=a, b=b, loc=0, scale=std, size=size)
+    samples = np.reshape(samples, shape)
+    with torch.no_grad():
+        weights.copy_(torch.tensor(samples, device=weights.device))
+
+
+def lecun_normal_init_(weights):
+    trunc_normal_init_(weights, scale=1.0)
+
+
+def he_normal_init_(weights):
+    trunc_normal_init_(weights, scale=2.0)
+
+
+def glorot_uniform_init_(weights):
+    nn.init.xavier_uniform_(weights, gain=1)
+
+
+def final_init_(weights):
+    with torch.no_grad():
+        weights.fill_(0.0)
+
+
+def gating_init_(weights):
+    with torch.no_grad():
+        weights.fill_(0.0)
+
+
+def normal_init_(weights):
+    nn.init.kaiming_normal_(weights, nonlinearity="linear")
+
+
+class Linear(nn.Linear):
+    """
+    A Linear layer with built-in nonstandard initializations. Called just
+    like torch.nn.Linear.
+
+    Implements the initializers in 1.11.4, plus some additional ones found
+    in the code.
+    """
+
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        bias: bool = True,
+        init: str = "default",
+        init_fn: Optional[Callable[[torch.Tensor, torch.Tensor], None]] = None,
+        precision=None,
+    ):
+        """
+        Args:
+            in_dim:
+                The final dimension of inputs to the layer
+            out_dim:
+                The final dimension of layer outputs
+            bias:
+                Whether to learn an additive bias. True by default
+            init:
+                The initializer to use. Choose from:
+
+                "default": LeCun fan-in truncated normal initialization
+                "relu": He initialization w/ truncated normal distribution
+                "glorot": Fan-average Glorot uniform initialization
+                "gating": Weights=0, Bias=1
+                "normal": Normal initialization with std=1/sqrt(fan_in)
+                "final": Weights=0, Bias=0
+
+                Overridden by init_fn if the latter is not None.
+            init_fn:
+                A custom initializer taking weight and bias as inputs.
+                Overrides init if not None.
+        """
+        super(Linear, self).__init__(in_dim, out_dim, bias=bias)
+
+        if bias:
+            with torch.no_grad():
+                self.bias.fill_(0)
+
+        with torch.no_grad():
+            if init_fn is not None:
+                init_fn(self.weight, self.bias)
+            else:
+                if init == "default":
+                    lecun_normal_init_(self.weight)
+                elif init == "relu":
+                    he_normal_init_(self.weight)
+                elif init == "glorot":
+                    glorot_uniform_init_(self.weight)
+                elif init == "gating":
+                    gating_init_(self.weight)
+                    if bias:
+                        self.bias.fill_(1.0)
+                elif init == "normal":
+                    normal_init_(self.weight)
+                elif init == "final":
+                    final_init_(self.weight)
+                else:
+                    raise ValueError("Invalid init string.")
+
+        self.precision = precision
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:  # type:ignore
+        return F.linear(x, self.weight, self.bias)
+
+
+class LinearNoBias(Linear):
+    """
+    Convenience class for readability.
+    """
+
+    __init__ = partialmethod(Linear.__init__, bias=False)
+
+
+class AdaLN(nn.Module):
+    """Adaptive Layer Normalization."""
+
+    def __init__(self, normalized_shape):
+        super(AdaLN, self).__init__()
+        # Layer norms
+        self.a_layer_norm = (
+            LayerNorm(  # equivalent to scale=False, offset=False in Haiku
+                normalized_shape, elementwise_affine=False, bias=False
+            )
+        )
+        self.s_layer_norm = (
+            LayerNorm(  # equivalent to scale=True, offset=False in Haiku
+                normalized_shape, elementwise_affine=True, bias=False
+            )
+        )
+
+        # Linear layers for gating and the skip connection
+        dim = (
+            normalized_shape
+            if isinstance(normalized_shape, int)
+            else normalized_shape[-1]
+        )
+        self.to_gamma = nn.Sequential(Linear(dim, dim, init="gating"), nn.Sigmoid())
+        self.skip_linear = LinearNoBias(dim, dim, init="final")
+
+    def forward(self, a, s):
+        a = self.a_layer_norm(a)
+        s = self.s_layer_norm(s)
+        a = self.to_gamma(s) * a + self.skip_linear(s)
+        return a
+
+
+class Attention(nn.Module):
+    """
+    Standard multi-head attention using AlphaFold's default layer
+    initialization. Allows multiple bias vectors.
+    """
+
+    def __init__(
+        self,
+        c_q: int,
+        c_k: int,
+        c_v: int,
+        c_hidden: int,
+        no_heads: int,
+        gating: bool = True,
+        residual: bool = True,
+        proj_q_w_bias: bool = False,
+    ):
+        """
+        Args:
+            c_q:
+                Input dimension of query data
+            c_k:
+                Input dimension of key data
+            c_v:
+                Input dimension of value data
+            c_hidden:
+                Per-head hidden dimension
+            no_heads:
+                Number of attention heads
+            gating:
+                Whether the output should be gated using query data
+            residual:
+                If the output is residual, then the final linear layer is initialized to
+                zeros so that the residual layer acts as the identity at initialization.
+            proj_q_w_bias:
+                Whether to project the Q vectors with a Linear layer that uses a bias
+        """
+        super(Attention, self).__init__()
+
+        self.c_q = c_q
+        self.c_k = c_k
+        self.c_v = c_v
+        self.c_hidden = c_hidden
+        self.no_heads = no_heads
+        self.gating = gating
+
+        split_heads = nn.Unflatten(
+            dim=-1, unflattened_size=(self.no_heads, self.c_hidden)
+        )
+        # The qkv linear layers project no_heads * c_hidden and then split the dimensions
+        linear_q_class = Linear if proj_q_w_bias else LinearNoBias
+        self.linear_q = nn.Sequential(
+            linear_q_class(self.c_q, self.c_hidden * self.no_heads, init="glorot"),
+            split_heads,
+        )
+
+        self.linear_k = nn.Sequential(
+            LinearNoBias(self.c_k, self.c_hidden * self.no_heads, init="glorot"),
+            split_heads,
+        )
+        self.linear_v = nn.Sequential(
+            LinearNoBias(self.c_v, self.c_hidden * self.no_heads, init="glorot"),
+            split_heads,
+        )
+        self.linear_o = LinearNoBias(
+            self.c_hidden * self.no_heads,
+            self.c_q,
+            init="final" if residual else "default",
+        )
+
+        self.to_gamma = None
+        if self.gating:
+            self.to_gamma = nn.Sequential(
+                LinearNoBias(self.c_q, self.c_hidden * self.no_heads, init="gating"),
+                split_heads,
+                nn.Sigmoid(),
+            )
+
+    def _prep_qkv(
+        self, q_x: torch.Tensor, kv_x: torch.Tensor, apply_scale: bool = True
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # [*, Q/K/V, H, C_hidden]
+        q = self.linear_q(q_x)
+        k = self.linear_k(kv_x)
+        v = self.linear_v(kv_x)
+
+        # [*, Q/K/V, H, C_hidden] -> [*, H, Q/K/V, C_hidden]
+        q = q.transpose(-2, -3)
+        k = k.transpose(-2, -3)
+        v = v.transpose(-2, -3)
+
+        if apply_scale:
+            q /= math.sqrt(self.c_hidden)
+
+        return q, k, v
+
+    def _wrap_up(self, o: torch.Tensor, q_x: torch.Tensor) -> torch.Tensor:
+        if self.to_gamma is not None:
+            g = self.to_gamma(q_x)
+
+            # [*, Q, H, C_hidden]
+            o = o * g
+
+        # [*, Q, H * C_hidden]
+        o = flatten_final_dims(o, 2)
+
+        # [*, Q, C_q]
+        o = self.linear_o(o)
+
+        return o
+
+    def forward(
+        self,
+        q_x: torch.Tensor,
+        kv_x: torch.Tensor,
+        biases: Optional[List[torch.Tensor]] = None,
+        use_deepspeed_evo_attention: bool = False,
+    ) -> torch.Tensor:
+        """
+        Args:
+            q_x:
+                [*, Q, C_q] query data
+            kv_x:
+                [*, K, C_k] key data
+            biases:
+                List of biases that broadcast to [*, H, Q, K]
+            use_deepspeed_evo_attention:
+                Whether to use DeepSpeed memory-efficient attention kernel.
+                If none of the "use_<...>" flags are True, a stock PyTorch
+                implementation is used instead
+        Returns
+            [*, Q, C_q] attention update
+        """
+
+        if biases is None:
+            biases = []
+        # DeepSpeed attention kernel applies scaling internally
+        # [B, H, L, D]
+        q, k, v = self._prep_qkv(q_x, kv_x, apply_scale=not use_deepspeed_evo_attention)
+
+        if use_deepspeed_evo_attention:
+            if len(biases) > 2:
+                raise ValueError(
+                    "If use_deepspeed_evo_attention is True, you may only "
+                    "provide up to two bias terms"
+                )
+            o = _deepspeed_evo_attn(q, k, v, biases)
+        else:
+            o = _attention(q, k, v, biases)  # [B, N_seq, H, N_res, D]
+            o = o.transpose(-2, -3)
+
+        o = self._wrap_up(o, q_x)
+
+        return o
+
+
+def safe_softmax(x, axis=-1):
+    """A softmax that returns 0.0s instead of NaNs when all inputs to the softmax
+    dim are 0.0. This occurs during sequence-local atom attention if the input is also
+    padded. This function will be made obsolete once we switch to FlexAttention
+    (pending bias gradient support)."""
+    a = F.softmax(x, axis)
+    a = torch.nan_to_num(a, nan=0.0)
+    return a
+
+
+def _attention(
+    query: torch.Tensor,
+    key: torch.Tensor,
+    value: torch.Tensor,
+    biases: List[torch.Tensor],
+) -> torch.Tensor:
+    """A stock PyTorch implementation of the attention mechanism.
+    Args:
+        query:
+            [*, H, Q, C_hidden] query tensor
+        key:
+            [*, H, K/V, C_hidden] key tensor
+        value:
+            [*, H, K/V, C_value] value tensor
+        biases:
+            a list of biases that broadcast to [*, H, Q, K]
+    Returns:
+        the resultant tensor [*, H, Q, C_value]
+    """
+
+    # [*, H, C_hidden, K]
+    key = permute_final_dims(key, (1, 0))
+
+    # [*, H, Q, K]
+    a = torch.matmul(query, key)
+
+    for b in biases:
+        a = a + b
+
+    a = safe_softmax(a, -1)
+
+    # [*, H, Q, C_hidden]
+    a = torch.matmul(a, value)
+
+    return a
+
+
+def _deepspeed_evo_attn(
+    q: torch.Tensor,
+    k: torch.Tensor,
+    v: torch.Tensor,
+    biases: List[torch.Tensor],
+):
+    """
+    Compute attention using the DeepSpeed DS4Sci_EvoformerAttention kernel.
+
+    Args:
+        q:
+            [*, H, Q, C_hidden] query data
+        k:
+            [*, H, K, C_hidden] key data
+        v:
+            [*, H, V, C_hidden] value data
+        biases:
+            List of biases that broadcast to [*, H, Q, K]
+    """
+
+    if not ds4s_is_installed:
+        raise ValueError(
+            "_deepspeed_evo_attn requires that DeepSpeed be installed "
+            "and that the deepspeed.ops.deepspeed4science package exists"
+        )
+
+    def reshape_dims(x):
+        no_batch_dims = len(x.shape[:-3])
+        if no_batch_dims < 1:
+            raise AssertionError("Found no batch dimensions.")
+        if no_batch_dims < 2:
+            return x.reshape((x.shape[0],) + (1,) + x.shape[1:])
+        if no_batch_dims > 2:
+            return x.reshape(*((x.shape[0], -1) + x.shape[-3:]))
+        return x
+
+    # [*, H, Q/K, C_hidden] -> [*, Q/K, H, C_hidden]
+    q = q.transpose(-2, -3)
+    k = k.transpose(-2, -3)
+    v = v.transpose(-2, -3)
+
+    # Reshape tensors to match expected input shape [B, N, Q/K, H, C_hidden]
+    # for DS4Sci_EvoformerAttention() by adding or flattening batch dims as needed.
+    orig_shape = q.shape
+    if len(orig_shape[:-3]) != 2:
+        q = reshape_dims(q)
+        k = reshape_dims(k)
+        v = reshape_dims(v)
+        biases = [reshape_dims(b) for b in biases]
+
+    # DeepSpeed attn. kernel requires inputs to be type bf16 or fp16
+    # Cast to bf16 so kernel can be used during inference
+    orig_dtype = q.dtype
+    o = DS4Sci_EvoformerAttention(
+        q.to(dtype=torch.bfloat16),
+        k.to(dtype=torch.bfloat16),
+        v.to(dtype=torch.bfloat16),
+        [b.to(dtype=torch.bfloat16) for b in biases],
+    )
+    o = o.to(dtype=orig_dtype)
+
+    o = o.reshape(orig_shape)
+    return o

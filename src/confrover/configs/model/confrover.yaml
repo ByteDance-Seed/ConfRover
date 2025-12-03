@@ -1,0 +1,104 @@
+_target_: confrover.model.confrover.ConfRover
+
+seed: 42
+use_deepspeed_evo_attention: false
+kv_cache_type: offloaded
+
+encoder:
+  _target_: confrover.model.encoder.pseudo_beta_pair.PseudoBetaPairEncoder
+  res_idx_emb_size: 128
+  output_size: ${..temporal.llama_config.hidden_size} # depends on llama model
+  pretrained_single_dim: 384
+  pretrained_pair_dim: 128
+  use_trainable_mask_embedding: false
+  use_deepspeed_evo_attention: ${..use_deepspeed_evo_attention}
+  chunk_size: ${..temporal.pairformer_config.chunk_size}
+
+temporal:
+  _target_: confrover.model.temporal.llama.FusedLlamaPairformerModule
+
+  hidden_size: 128 # this is the shared hidden size for both llama and pairformer
+
+  llama_config:
+    _target_: transformers.models.llama.configuration_llama.LlamaConfig
+    hidden_size: ${..hidden_size}
+    intermediate_size: 256
+    num_hidden_layers: 8 # /2 will be num of pairformer stacks
+    num_attention_heads: 4
+    max_position_embeddings: 100005
+    use_cache: True # will be False in grad_ckpt training, no need to change
+    cache_type: ${...kv_cache_type}
+    attn_implementation: eager
+
+  pairformer_config:
+    no_blocks: 1 # blocks in each block
+    c_s: ${..hidden_size}
+    c_z: ${..hidden_size}
+    c_hidden_mul: 128
+    no_heads_tri_attn: 4
+    c_hidden_pair_attn: 32
+    no_heads_single_attn: 16
+    transition_n: 4
+    pair_dropout: 0.25
+    fuse_projection_weights: false
+    blocks_per_ckpt: 1
+    clear_cache_between_blocks: False
+    inf: 1e8
+    chunk_size: null
+    use_deepspeed_evo_attention: ${...use_deepspeed_evo_attention}
+
+decoder:
+  _target_: confrover.model.decoder.confdiff.ConfDiffDecoder
+
+  model_nn:
+    _target_: confrover.model.decoder.confdiff.ConfDiffNetwork
+
+    single_hidden_dim: ${...temporal.hidden_size}
+    pair_hidden_dim: ${...temporal.hidden_size}
+    embedder:
+      _target_: confrover.model.decoder.confdiff.embedder.Embedder
+      time_emb_size: 64
+      scale_t: 1000. 
+      res_idx_emb_size: 64
+      num_rbf: 64
+      rbf_min: 0.
+      rbf_max: 5.
+      pretrained_single_dim: 384
+      pretrained_pair_dim: 128
+      single_dim: 256
+      pair_dim: 128
+    
+    structure_module:
+      _target_: confrover.model.decoder.confdiff.structure_module.StructureModule
+      num_ipa_blocks: 4
+      c_s: 256
+      c_z: 128
+      c_hidden: 256
+      c_skip: 64
+      no_heads: 4
+      no_qk_points: 8
+      no_v_points: 12
+      seq_tfmr_num_heads: 4
+      seq_tfmr_num_layers: 2
+      anglenet_hidden: 128
+      anglenet_no_blocks: 2
+
+  diffuser:
+    _target_: confrover.model.decoder.confdiff.diffuser.se3_diffuser.SE3Diffuser
+    se3_conf:
+      diffuse_trans: true
+      diffuse_rot: true
+      r3:
+        min_b: 0.1
+        max_b: 20.0
+        coordinate_scaling: 0.1
+        alpha: -1
+      so3:
+        num_omega: 1000
+        num_sigma: 1000
+        min_sigma: 0.1
+        max_sigma: 1.5
+        schedule: "logarithmic"
+        cache_dir: ".cache/"
+        use_cached_score: False
+        alpha: -1

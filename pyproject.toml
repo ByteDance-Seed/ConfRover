@@ -1,0 +1,131 @@
+[project]
+name = "confrover"
+version = "0.1.0"
+description = "Core dependencies extracted from conda environment"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "accelerate==1.9.0",
+  "biotite==0.40.0",
+  "biopython==1.81",
+  "deepspeed==0.11.1",
+  "deeptime==0.4.4",
+  "diffusers[torch]==0.34.0",
+  "dm-tree==0.1.8",
+  "easydict==1.10",
+  "einops==0.7.0",
+  "hydra-core==1.3.2",
+  "hydra-colorlog==1.2.0",
+  "jax==0.4.27",
+  "jupyter==1.0.0",
+  "jupyter-contrib-nbextensions==0.7.0",
+  "lightning==2.0.1",
+  "matplotlib==3.8.0",
+  "mdanalysis==2.6.1",
+  "mdtraj==1.9.9",
+  "ml-collections==0.1.1",
+  "modelcif==0.9",
+  "numba==0.60.0",
+  "numpy==1.24.4",
+  "numexpr<=2.13",
+  "omegaconf==2.3.0",
+  "pyarrow==18.1.0",
+  "pyemma==2.5.12",
+  "rdkit==2023.3.3",
+  "safetensors==0.5.3",
+  "scikit-learn==1.3.1",
+  "scipy==1.11.3",
+  "seaborn==0.13.0",
+  "tables<=3.9",
+  "torch==2.1.2",
+  "transformers==4.41.2",
+  "triton==2.1.0",
+  "openmm[cuda]==8.2.0",
+  "pdbfixer @ git+https://github.com/openmm/pdbfixer.git@v1.10",
+  "openmmtools @ git+https://github.com/choderalab/openmmtools.git@0.24.0",
+  "pytest>=7.4",
+  "pytest-xdist",
+]
+
+
+[project.optional-dependencies]
+
+openfold = [
+  "openfold @ git+https://github.com/aqlaboratory/openfold.git@pl_upgrades"
+]
+
+
+dev = [
+    "coverage",
+    "requests",
+    "ruff",
+    "basedpyright",
+    "jupyter",
+    "ipython"
+]
+
+#### Package build ####
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# packages = ["confrover"]
+# package-dir = { "confrover" = "src/confrover" }
+package-dir = { "" = "src" }
+include-package-data = true
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["confrover*"]
+
+[tool.setuptools.package-data]
+confrover= [
+  "configs/*.yaml",
+  "configs/*/*.yaml",
+  "_patch/openfold/stereo_chemical_props.txt"
+]
+
+#### Setup scripts ####
+[project.scripts]
+confrover = "confrover.cli:main"
+
+
+#### Test ####
+[tool.pytest.ini_options]
+
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore:.*no __module__.*:",
+    "ignore:.*nested tensors.*:",
+    "ignore:.*log_every_n_steps.*:",
+]
+
+# Show summary of skipped/xfail tests
+addopts = "-ra -n 4"
+
+testpaths = [
+  "tests"
+]
+
+
+#### Format ####
+[tool.ruff]
+target-version = "py310"
+select = ["I"]
+exclude = ["**/_deprecated"]
+lint.extend-select = ["FA102", "FA100"]
+lint.ignore = ["D100", "D104", "COM812", "ISC001", "F722", "F821", "E731", "E741", "E402", "E722"]
+
+[tool.ruff.lint.isort]
+required-imports = ["from __future__ import annotations"]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
+deprecateTypingAliases = true
+strictListInference = true
+strictDictionaryInference = true
+strictSetInference = true
+reportPrivateImportUsage = false
